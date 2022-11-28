@@ -1,6 +1,7 @@
 import datetime
 import time
 import typing
+from cogs.roles import RoleCog
 import pymongo
 import requests
 import os
@@ -9,85 +10,59 @@ import traceback
 from nextcord.ext import commands
 from data import reactionroles_data, helper_roles, subreddits, study_roles
 
-# Set up a Discord API Token and a MongoDB Access Link in a .env file and use the command "heroku local" to run the bot locally.
-
+GUILD_ID = 576460042774118420
 TOKEN = os.environ.get("IGCSEBOT_TOKEN")
 LINK = os.environ.get("MONGO_LINK")
-GUILD_ID = 576460042774118420
 
-intents = discord.Intents().all()
-bot = commands.Bot(command_prefix=".", intents=intents)
-keywords = {}
+class rIGCSE(commands.Bot):
+    # Set up a Discord API Token and a MongoDB Access Link in a .env file and use the command "heroku local" to run the bot locally.
 
-igcse, logs = None, None
+    def __init__(self, **options):
+        super().__init__(**options)
 
-@bot.event
-async def on_ready():
-    global igcse, logs
-    print(f"Logged in as {str(bot.user)}.")
-    await bot.change_presence(activity=discord.Game(name="Flynn#5627"))
-    embed = discord.Embed(title=f"Guilds Info ({len(bot.guilds)})", colour=0x3498db, description="Statistics about the servers this bot is in.")
-    for guild in bot.guilds:
-        value = f"Owner: {guild.owner}\nMembers: {guild.member_count}\nBoosts: {guild.premium_subscription_count}"
-        embed.add_field(name=guild.name, value=value, inline=True)
-    igcse = await bot.fetch_guild(576460042774118420)
-    logs = await igcse.fetch_channel(1017792876584906782)
-    await logs.send(embed=embed)
+    async def on_ready(self):
+        print(f'We have logged in as {bot.user}')
+        await bot.change_presence(activity=discord.Game(name="Flynn#5627"))
+        embed = discord.Embed(title="Guilds Info", colour=0x3498db, description="Statistics about the servers this bot is in.")
+        for guild in bot.guilds:
+            value = f"Owner: {guild.owner}\nMembers: {guild.member_count}\nBoosts: {guild.premium_subscription_count}"
+            embed.add_field(name=guild.name, value=value, inline=False)
+        flynn = await bot.fetch_user(604335693757677588)
+        channel = await flynn.create_dm()
+        await channel.send(embed=embed)
 
+        self.add_cog(RoleCog)
+        self.load_extension("jishaku")
 
-@bot.event
-async def on_command_error(ctx, exception):
-    if isinstance(exception, commands.CommandNotFound):
-        return
-    description = f"Channel: {ctx.channel.mention}\nUser: {ctx.author.mention}\nGuild: {ctx.guild.name} ({ctx.guild.id})\n\nError:\n```{''.join(traceback.format_exception(exception, exception, exception.__traceback__))}```"
-    embed = discord.Embed(title="An Exception Occured", description=description)
-    await logs.send(embed=embed)
+    async def on_member_join(self, member):
+        if member.guild.id == 576460042774118420:  # r/igcse welcome message
+            embed1 = discord.Embed.from_dict(eval(
+                r"""{'color': 3066993, 'type': 'rich', 'description': "Hello and welcome to the official r/IGCSE Discord server, a place where you can ask any doubts about your exams and find help in a topic you're struggling with! We strongly suggest you read the following message to better know how our server works!\n\n***How does the server work?***\n\nThe server mostly entirely consists of the students who are doing their IGCSE and those who have already done their IGCSE exams. This server is a place where you can clarify any of your doubts regarding how exams work as well as any sort of help regarding a subject or a topic in which you struggle.\n\nDo be reminded that academic dishonesty is not allowed in this server and you may face consequences if found to be doing so. Examples of academic dishonesty are listed below (the list is non-exhaustive) - by joining the server you agree to follow the rules of the server.\n\n> Asking people to do your homework for you, sharing any leaked papers before the exam session has ended, etc.), asking for leaked papers or attempted malpractice are not allowed as per *Rule 1*. \n> \n> Posting pirated content such as textbooks or copyrighted material are not allowed in this server as per *Rule 7.*\n\n***How to ask for help?***\n\nWe have subject helpers for every subject to clear any doubts or questions you may have. If you want a subject helper to entertain a doubt, you should use the command `/helper` in the respective subject channel. A timer of **15 minutes** will start before the respective subject helper will be pinged. Remember to cancel your ping once a helper is helping you!\n\n***How to contact the moderators?***\n\nYou can contact us by sending a message through <@861445044790886467> by responding to the bot, where it will be forwarded to the moderators to view. Do be reminded that only general server inquiries should be sent and other enquiries will not be entertained, as there are subject channels for that purpose.", 'title': 'Welcome to r/IGCSE!'}"""))
+            channel = await member.create_dm()
+            await channel.send(embed=embed1)
 
+    async def on_voice_state_update(self, member, before, after):
+        if member.guild.id == 576460042774118420:
+            if before.channel:  # When user leaves a voice channel
+                if "study session" in before.channel.name.lower() and before.channel.members == []:  # If the study session is over
+                    await before.channel.edit(name="General")  # Reset channel name
 
-@bot.event
-async def on_application_command_error(interaction, exception):
-    description = f"Channel: {interaction.channel.mention}\nUser: {interaction.user.mention}\nGuild: {interaction.guild.name} ({interaction.guild.id})\n\nError:\n```{''.join(traceback.format_exception(exception, exception, exception.__traceback__))}```"
-    embed = discord.Embed(title="An Exception Occured", description=description)
-    await logs.send(embed=embed)
+bot = rIGCSE(command_prefix=".", intents=discord.Intents.all())
+client = discord.Client()
 
-
-@bot.event
-async def on_voice_state_update(member, before, after):
-    if member.guild.id == 576460042774118420:
-        if before.channel:  # When user leaves a voice channel
-            if "study session" in before.channel.name.lower() and before.channel.members == []:  # If the study session is over
-                await before.channel.edit(name="General")  # Reset channel name
-
-
-session_roles = {782273117321166888, 782423045578948618, 782423808271056917, 853135207862370324, 853135509488009216, 853135836597583902, 931662314074169364, 921725505051459664, 921725841677901905, 698291687981580308}
-subject_roles = {688354722251276308, 688355303808303170, 871702273640787988, 685837416443281493, 685837450895032336, 685837475939221770, 667769546475700235, 688357525984509984, 685837363003523097, 685836740774330378, 677411157434171404, 688357284920819717, 668927421512155142, 688359807203278986, 685837255138607182, 688356986798211074, 688362197096988688, 688356500506148884, 685836973004423169, 685837280396705803, 688360519735967766, 688362250951852085, 685837171491471401, 685836834005319721, 868056692942835742, 932660913054580766, 688361654852780048, 871587296330260570, 685836866166980661, 688361164161548361, 688361596149563431, 685836889990627335, 871587728737849344, 886884445657890826, 853588511252545566, 853587095317643264, 853588416774930432, 853586114380300298, 853586292435451904, 853586450141413416, 883190243623333888, 883190176644468758, 881366711645921310, 868323020769493034, 883190289211228170, 868324666102661140, 788344643367469057}
-
-@bot.event
+@client.event
 async def on_raw_reaction_add(reaction):
-    guild = bot.get_guild(GUILD_ID)
-    user = await guild.fetch_member(reaction.user_id)
-    if user.bot:
-        return
-    is_rr = rrDB.get_rr(str(reaction.emoji), reaction.message_id)
-    verified = await getRole("Verified")
-    stage1 = await getRole("Stage 1 - Unverified")
-    stage2 = await getRole("Stage 2 - Unverified")
-    if is_rr is not None:
-        role = guild.get_role(is_rr["role"])
-        await user.add_roles(role)
-        user = await guild.fetch_member(reaction.user_id)
-        roles = set([r.id for r in user.roles])
-        await user.remove_roles(stage1, stage2, verified)
-        if (len(roles.intersection(session_roles)) > 0 and len(roles.intersection(subject_roles)) > 0) or await hasRole(user, "NOT IGCSE") or await hasRole(user, "IGCSE Alumni"):
-            await user.add_roles(verified)
-        elif len(roles.intersection(session_roles)) > 0:
-            await user.add_roles(stage2)
-        else:
-            await user.add_roles(stage1)
-        return
+    if reaction.member.bot: return
+    chnl = await client.fetch_channel(reaction.channel_id)
+    msg = await chnl.fetch_message(reaction.message_id)
 
-    channel = bot.get_channel(reaction.channel_id)
-    msg = await channel.fetch_message(reaction.message_id)
+    try: # Reaction Roles
+        items = reactionroles[reaction.message_id]
+        roleid = items[reaction.emoji.name]
+        role = msg.guild.get_role(roleid)
+        await reaction.member.add_roles(role)
+    except:
+        pass
 
     author = msg.channel.guild.get_member(reaction.user_id)
     if author.bot or not await isModerator(author): return

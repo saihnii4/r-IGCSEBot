@@ -2,3 +2,6 @@
 .idea/
 .DS_Store
 app_v1.py
+
+# ignore virtualenv folders and python cache files
+__pycache__/*
